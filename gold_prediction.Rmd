@@ -1,0 +1,276 @@
+---
+title: "TS project"
+author: "Shiyu Wu"
+date: "2024-04-15"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(forecast)
+library(readxl)
+library(dplyr)
+library(lubridate)
+data <- read_excel("data.xlsx")
+data <- data %>%
+  mutate(date = as.Date(date)) %>%
+  filter(year(date) >= 2020)
+
+library(quantmod)
+getSymbols("SPY", src = "yahoo", 
+           from = "2020-01-01", 
+           to = "2024-04-16")
+sp500 <- na.omit(Cl(SPY))
+colnames(sp500) <- "close"
+print(head(sp500))
+print(tail(sp500))
+print(nrow(sp500))
+sp500_df <- data.frame(date = index(sp500), 
+                       close = as.numeric(sp500$close))
+sp500_df$date <- as.Date(sp500_df$date, format = "%m/%d/%Y")
+sp500_df <- sp500_df[order(sp500_df$date), ]
+head(sp500_df)
+tail(sp500_df)
+str(sp500_df)
+```
+
+```{r}
+SP500 <- ts(sp500, frequency = 252, start = c(2020, 1))
+
+plot(SP500,ylab="sp 500")
+
+acf(SP500)
+pacf(SP500)
+
+plot(diff(SP500,lag=1),ylab="differenced sp500")
+
+```
+
+```{r}
+SP500 <- ts(data$sp500, frequency = 252, start = c(2020, 1))
+fit <- auto.arima(SP500)
+
+summary(fit)
+```
+
+```{r}
+sp500_df <- ts(sp500_df, frequency = 252, start = c(2024, 1))
+forecast <- forecast(fit, h = 72)
+forecast
+plot(forecast)
+lines(data$date,data$sp500, col="red")
+
+library(forecast)
+forecast_values <- forecast(fit, h = 72)
+forecast_dates <- seq(from = as.Date("2024-01-01"), by = "day", length.out = 72)
+combined_x_range <- range(sp500_df$date, forecast_dates, na.rm = TRUE)
+combined_y_range <- range(sp500_df$close, forecast_values$mean, forecast_values$lower, forecast_values$upper, na.rm = TRUE)
+plot(sp500_df$date, sp500_df$close, type = "l", lwd = 1, col = "black",
+     xlab = "Date", ylab = "Gold Price", main = "Forecast vs. Actual Gold Prices",
+     xlim = combined_x_range, ylim = combined_y_range)
+lines(forecast_dates, forecast_values$mean, col = "red", lwd = 1)
+lines(forecast_dates, forecast_values$lower[, 2], col = "blue", lty = 2)  # 95% lower CI
+lines(forecast_dates, forecast_values$upper[, 2], col = "blue", lty = 2)  # 95% upper CI
+legend("topleft", 
+       legend = c("Actual", "Forecast", "95% Confidence Interval"),
+       col = c("black", "red", "blue"), 
+       lty = c(1, 1, 2), lwd = c(2, 2, 1))
+```
+
+
+```{r}
+library(rugarch)
+
+spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(1, 1)),
+                   mean.model = list(armaOrder = c(0, 0), include.mean = TRUE),
+                   distribution.model = "norm")
+
+fit_garch <- ugarchfit(spec = spec, data = SP500)
+
+forecast_garch <- ugarchforecast(fit_garch, n.ahead = 72)
+
+plot(forecast_garch, which = 1)
+plot(forecast_garch, which = 2) 
+
+```
+
+
+```{r}
+plot(SP500, main="Observations vs. Fitted Values")
+lines(SP500-fit$resid,col="red")
+
+plot(gold_ts,gold_ts-fit$resid, xlab="Observed", ylab = "Predicted")
+cor(gold_ts,gold_ts-fit$resid)
+residuals2 <- fit$residuals
+plot(residuals2, main="Residuals of the ARIMA model")
+
+acf(residuals2)
+pacf(residuals2)
+
+qqnorm(fit$resid); qqline(fit$resid)
+
+```
+
+
+
+```{r}
+model1 <- auto.arima(gold_ts, d=1, D=0, seasonal=T, trace=T, approximation=F, allowdrift=F)
+
+model2 <- auto.arima(gold_ts, d=0, D=1, seasonal=T, trace=T, approximation=F, allowdrift=F)
+```
+
+
+```{r}
+forecast1 <- forecast(model1, h=252)
+forecast2 <- forecast(model2, h=252)
+
+plot(forecast1, main="Forecast from SARIMA(p,1,q)(P,0,Q)12")
+plot(forecast2, main="Forecast from SARIMA(p,0,q)(P,1,Q)12")
+```
+
+```{r }
+    library(TSA)
+    library(forecast)
+    library(fUnitRoots)
+    library(car)
+    library(stats)
+    library(hexbin)
+    library(uroot)
+    library(tseries)
+    library(fBasics)
+
+data <- read_excel("data.xlsx")
+data <- data %>%
+  mutate(date = as.Date(date)) %>%
+  filter(year(date) >= 2020)
+gold_ts <- ts(data$gold, frequency = 252, start = c(2020, 1))
+
+acf(log(gold_ts))
+plot(diff(gold_ts),ylab = 'diff(price)')
+seasonplot(log(gold_ts), type = 'l')#no season
+monthplot(log(gold_ts))#no season
+plot(stl(log(gold_ts),s.window = 'period'))#LOESS
+```
+
+
+```{r}
+    #log transform
+    BoxCox.ar(gold_ts)#best log
+    title(main = 'Box-Cox transformation')
+    plot(gold_ts, type = 'l', main = '2020.1-2023.12 Gold Future Price')
+    plot(log(gold_ts), type = 'l', main = '2020.1-2023.12 Log Gold Future Price')
+    
+    #diff
+    ndiffs(gold_ts)#best diff
+    plot(diff(log(gold_ts)),type = 'l')
+    acf(diff(log(gold_ts)), lag = 25)
+    pacf(diff(log(gold_ts)), lag = 25)
+    plot(diff(log(gold_ts)), ylab = 'diff(log(price))', type = 'l', main = 'Gold Future Log Return')
+    urdfTest(diff(log(gold_ts)))
+    ar(diff(log(gold_ts)))
+    adfTest(diff(log(gold_ts)), lags = 23, type = 'ct')#root test
+    adf.test(diff(log(gold_ts)))
+    Box.test(diff(log(gold_ts)), type = "Ljung-Box", lag = log(length(gold_ts)))#white noise test
+    
+    #time trend regression
+    gold.reg <- lm(log(gold_ts)~time(log(gold_ts)))
+    summary(gold.reg)
+    plot(rstudent(gold.reg), type = 'l')
+    mean(rstandard(gold.reg))
+    acf(rstudent(gold.reg))
+```
+
+
+```{r}
+getSymbols("SPY", src = "yahoo", 
+           from = "2020-01-01", 
+           to = "2024-04-16")
+sp500 <- na.omit(Cl(SPY))
+colnames(sp500) <- "close"
+print(head(sp500))
+print(tail(sp500))
+print(nrow(sp500))
+sp500_df <- data.frame(date = index(sp500), 
+                       close = as.numeric(sp500$close))
+sp500_df$date <- as.Date(sp500_df$date, format = "%m/%d/%Y")
+sp500_df <- sp500_df[order(sp500_df$date), ]
+head(sp500_df)
+tail(sp500_df)
+str(sp500_df)
+
+data <- sp500_df %>%
+  dplyr::mutate(date = as.Date(date)) %>%
+  filter(year(date) <= 2023)
+
+```
+
+
+```{r}
+gold_model <- auto.arima(data$close)
+print(gold_model)
+```
+
+```{r}
+fit1 <- arima(data$close,order=c(2,1,2))
+summary(fit1)
+```
+
+```{r}
+fitted1 = data$close-fit1$resid
+plot(data$close, type ='l', ylab = "sp 500")
+lines(fitted1,col="red")
+```
+
+```{r}
+cor_value <- round(cor(data$close, fitted1, use = "complete.obs"), 3)
+plot(data$close, fitted1, xlab="Observed", 
+     ylab="Predicted", col="black", pch=20)
+abline(0, 1, col="red")
+text_x <- min(data$close) + 0.1 * (max(data$close) - min(data$close))
+text_y <- min(fitted1) + 0.9 * (max(fitted1) - min(fitted1))
+text(x = text_x, y = text_y, 
+     labels = paste("Correlation:", cor_value), 
+     col='blue')
+```
+
+
+
+```{r}
+residuals <- residuals(gold_model)
+plot(residuals, 
+     main="Residuals of ARIMA Model (2,1,2)", 
+     ylab="Residuals")
+
+```
+
+
+```{r}
+tsdisplay(fit1$resid, points = F,
+         main="Residuals of ARIMA Model (2,1,2)")
+qqnorm(fit1$resid); qqline(fit1$resid, col = "red")
+
+```
+
+```{r}
+library(forecast)
+forecast_values <- forecast(gold_model, h = 72)
+plot(forecast_values)
+forecast_dates <- seq(from = as.Date("2023-12-31") + 1, by = "day", length.out = 72)
+actual_data <- sp500_df[sp500_df$date >= as.Date("2024-01-01") & sp500_df$date <= as.Date("2024-12-31"),]
+combined_x_range <- range(actual_data$date, forecast_dates, na.rm = TRUE)
+combined_y_range <- range(actual_data$close, forecast_values$mean, forecast_values$lower, forecast_values$upper, na.rm = TRUE)
+actual_data <- ts(actual_data$close, frequency = 252, start = c(2024,1))
+plot(actual_data, type = "l", lwd = 1, col = "black",
+     xlab = "Date", ylab = "Gold Price", main = "Forecast vs. Actual Gold Prices")
+lines(forecast_dates, forecast_values$mean, col = "red", lwd = 1)
+lines(forecast_dates, forecast_values$lower[, 2], col = "blue", lty = 2)  # 95% lower CI
+lines(forecast_dates, forecast_values$upper[, 2], col = "blue", lty = 2)  # 95% upper CI
+legend("topleft", 
+       legend = c("Actual", "Forecast", "95% Confidence Interval"),
+       col = c("black", "red", "blue"), 
+       lty = c(1, 1, 2), lwd = c(2, 2, 1))
+```

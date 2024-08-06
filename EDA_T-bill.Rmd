@@ -1,0 +1,158 @@
+---
+title: "EDA_T-bill"
+author: "Suyeon Song"
+date: "2024-04-05"
+output:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+```{r}
+# 10 years of t-bill data loading
+tb_2014 <- read.csv("t-bill/2014.csv")
+tb_2015 <- read.csv("t-bill/2015.csv")
+tb_2016 <- read.csv("t-bill/2016.csv")
+tb_2017 <- read.csv("t-bill/2017.csv")
+tb_2018 <- read.csv("t-bill/2018.csv")
+tb_2019 <- read.csv("t-bill/2019.csv")
+tb_2020 <- read.csv("t-bill/2020.csv")
+tb_2021 <- read.csv("t-bill/2021.csv")
+tb_2022 <- read.csv("t-bill/2022.csv")
+tb_2023 <- read.csv("t-bill/2023.csv")
+```
+
+```{r}
+# extract a column of "X13.WEEKS.COUPON.EQUIVALENT"
+cp_2014 <- (tb_2014[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2015 <- (tb_2015[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2016 <- (tb_2016[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2017 <- (tb_2017[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2018 <- (tb_2018[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2019 <- (tb_2019[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2020 <- (tb_2020[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2021 <- (tb_2021[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2022 <- (tb_2022[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2023 <- (tb_2023[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+```
+
+
+```{r}
+# set the date type in ascending order
+cp_2014 <- cp_2014[order(cp_2014$Date), ]
+cp_2015 <- cp_2015[order(cp_2015$Date), ]
+cp_2016 <- cp_2016[order(cp_2016$Date), ]
+cp_2017 <- cp_2017[order(cp_2017$Date), ]
+cp_2018 <- cp_2018[order(cp_2018$Date), ]
+cp_2019 <- cp_2019[order(cp_2019$Date), ]
+cp_2020 <- cp_2020[order(cp_2020$Date), ]
+cp_2021 <- cp_2021[order(cp_2021$Date), ]
+cp_2022 <- cp_2022[order(cp_2022$Date), ]
+cp_2023 <- cp_2023[order(cp_2023$Date), ]
+```
+
+```{r}
+# list them all
+cp_list <- list(
+  cp_2014 = cp_2014, cp_2015 = cp_2015, cp_2016 = cp_2016,
+  cp_2017 = cp_2017, cp_2018 = cp_2018, cp_2019 = cp_2019,
+  cp_2020 = cp_2020, cp_2021 = cp_2021, cp_2022 = cp_2022,
+  cp_2023 = cp_2023
+)
+
+```
+
+```{r}
+df_merge <- lapply(cp_list, function(df) {
+  # sort by date
+  df <- df[order(as.Date(df$Date, format = "%m/%d/%Y")), ]
+  # rename columns
+  colnames(df) <- c("date", "coupon")
+  # convert date type
+  df$date <- as.Date(df$date, format = "%m/%d/%Y")
+  return(df)
+})
+
+names(df_merge) <- names(cp_list)
+```
+
+```{r}
+# fill the previous values in NA
+df_merge <- lapply(df_merge, function(df) {
+  if (is.na(df$coupon[1])) {
+    df$coupon[1] <- 0.07 # 12/31/2013
+  }
+
+  for (i in 2:nrow(df)) {
+    if (is.na(df$coupon[i])) {
+      df$coupon[i] <- df$coupon[i - 1]
+    }
+  }
+  return(df)
+})
+```
+
+```{r}
+# combine the list of data frames into a single data frame
+combined_df <- bind_rows(df_merge)
+```
+
+```{r}
+# head/tail
+head(combined_df)
+tail(combined_df)
+```
+
+
+```{r}
+# summary of combined_df
+summary(combined_df)
+```
+```{r}
+# check the number of rows
+nrow(combined_df)
+```
+
+
+```{r}
+library(ggplot2)
+ggplot(combined_df, aes(x = coupon)) + 
+  geom_histogram(binwidth = 0.1, 
+                 fill = "grey", 
+                 color = "black") + 
+  labs(title = "Histogram of Coupon Rates", 
+       x = "Coupon Rate", 
+       y = "Frequency") +
+  theme_minimal()
+```
+
+
+
+
+```{r}
+## use ggplot
+ggplot(combined_df, aes(x = date, y = coupon)) +
+  geom_line() +
+  labs(title = "13 Weeks T-Bill Coupon Rate Over Time", 
+       x = "Date", 
+       y = "Coupon Rate (%)") +
+  theme_minimal()
+
+```
+
+```{r}
+# use time series
+coupon_ts <- ts(combined_df$coupon,
+                start = c(2014,1),
+                frequency = 365)
+
+# plot the time series
+plot(coupon_ts,
+     main = "13 weeks T-bill coupon rate over time",
+     ylab = "coupon rate")
+
+```
+
+```{r}
+coupon_ts
+```
+

@@ -1,0 +1,339 @@
+---
+title: "gold_before"
+author: "Suyeon Song"
+date: "2024-04-15"
+output: html_document
+---
+
+# S&P500
+
+```{r}
+library(quantmod)
+getSymbols("SPY",
+  src = "yahoo",
+  from = "2014-01-01",
+  to = "2023-12-31"
+)
+sp500 <- na.omit(Cl(SPY))
+colnames(sp500) <- "close"
+print(head(sp500))
+print(tail(sp500))
+print(nrow(sp500))
+sp500_df <- data.frame(
+  date = index(sp500),
+  close = as.numeric(sp500$close)
+)
+sp500_df$date <- as.Date(sp500_df$date, format = "%m/%d/%Y")
+sp500_df <- sp500_df[order(sp500_df$date), ]
+head(sp500_df)
+tail(sp500_df)
+str(sp500_df)
+plot(sp500_df, type = "l", main = "S&P500")
+```
+
+# Gold 
+
+```{r}
+library(quantmod)
+getSymbols("GC=F",
+  src = "yahoo",
+  from = "2014-01-01", to = "2023-12-31"
+)
+gold <- na.omit(Cl(`GC=F`))
+colnames(gold) <- "close"
+print(head(gold))
+print(tail(gold))
+print(nrow(gold))
+gold_df <- data.frame(
+  date = index(gold),
+  close = as.numeric(gold$close)
+)
+gold_df$date <- as.Date(gold_df$date, format = "%m/%d/%Y")
+gold_df <- gold_df[order(gold_df$date), ]
+head(gold_df)
+tail(gold_df)
+str(gold_df)
+```
+
+# T-bill
+
+```{r}
+# 10 years of t-bill data loading
+tb_2014 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2014.csv")
+tb_2015 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2015.csv")
+tb_2016 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2016.csv")
+tb_2017 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2017.csv")
+tb_2018 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2018.csv")
+tb_2019 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2019.csv")
+tb_2020 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2020.csv")
+tb_2021 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2021.csv")
+tb_2022 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2022.csv")
+tb_2023 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2023.csv")
+```
+
+```{r}
+# extract a column of "X13.WEEKS.COUPON.EQUIVALENT"
+cp_2014 <- (tb_2014[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2015 <- (tb_2015[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2016 <- (tb_2016[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2017 <- (tb_2017[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2018 <- (tb_2018[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2019 <- (tb_2019[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2020 <- (tb_2020[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2021 <- (tb_2021[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2022 <- (tb_2022[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2023 <- (tb_2023[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+```
+
+
+```{r}
+# set the date type in ascending order
+cp_2014 <- cp_2014[order(cp_2014$Date), ]
+cp_2015 <- cp_2015[order(cp_2015$Date), ]
+cp_2016 <- cp_2016[order(cp_2016$Date), ]
+cp_2017 <- cp_2017[order(cp_2017$Date), ]
+cp_2018 <- cp_2018[order(cp_2018$Date), ]
+cp_2019 <- cp_2019[order(cp_2019$Date), ]
+cp_2020 <- cp_2020[order(cp_2020$Date), ]
+cp_2021 <- cp_2021[order(cp_2021$Date), ]
+cp_2022 <- cp_2022[order(cp_2022$Date), ]
+cp_2023 <- cp_2023[order(cp_2023$Date), ]
+```
+
+```{r}
+# list them all
+cp_list <- list(
+  cp_2014 = cp_2014, cp_2015 = cp_2015, cp_2016 = cp_2016,
+  cp_2017 = cp_2017, cp_2018 = cp_2018, cp_2019 = cp_2019,
+  cp_2020 = cp_2020, cp_2021 = cp_2021, cp_2022 = cp_2022,
+  cp_2023 = cp_2023
+)
+```
+
+
+```{r}
+library(dplyr)
+df_merge <- lapply(cp_list, function(df) {
+  # sort by date
+  df <- df[order(as.Date(df$Date, format = "%m/%d/%Y")), ]
+  # rename columns
+  colnames(df) <- c("date", "coupon")
+  # convert date type
+  df$date <- as.Date(df$date, format = "%m/%d/%Y")
+  return(df)
+})
+
+names(df_merge) <- names(cp_list)
+combined_df <- bind_rows(df_merge)
+head(combined_df)
+tail(combined_df)
+nrow(combined_df)
+str(combined_df)
+```
+
+```{r}
+tmp <- inner_join(sp500_df, gold_df, by = "date")
+df <- inner_join(tmp, combined_df, by = "date")
+print(nrow(df))
+colnames(df) <- c("date", "gold", "sp500", "coupon")
+str(df)
+```
+
+```{r}
+library(dplyr)
+df <- df %>%
+  mutate(year = format(date, "%Y"))
+yearly_counts <- df %>%
+  group_by(year) %>%
+  summarise(n = n())
+print(yearly_counts)
+```
+
+```{r}
+library(dplyr)
+df_filtered <- df %>%
+  filter(date >= "2014-01-01" & date <= "2020-01-01")
+```
+
+```{r}
+acf(df_filtered$gold, main = "ACF plot of Gold")
+pacf(df_filtered$gold, main = "PACF plot of Gold")        
+```
+
+
+```{r}
+library(forecast)
+# use time series
+gold.dat <- df$gold
+gold.dat_ts <- ts(gold.dat, 
+                    start = c(2014, 1),
+  end = c(2023, 12),
+  frequency = 249)
+gold <- df_filtered$gold
+gold_ts <- ts(gold,
+  start = c(2014, 1),
+  end = c(2020, 1),
+  frequency = 249
+)
+plot(gold_ts,
+  main = "gold price over time",
+  ylab = "gold price"
+)
+
+plot(gold.dat_ts,
+  main = "gold price over time",
+  ylab = "gold price"
+)
+
+# forecast the time series
+forecast_gold <- forecast(gold_ts, h = 252)
+plot(forecast_gold)
+```
+```{r}
+plot(decompose(gold_ts))
+```
+
+```{r}
+plot(gold_ts,
+  type = "l",
+  main = "Gold Plot",
+  xlab = "Date",
+  ylab = "Gold Price"
+)
+
+```
+
+```{r}
+# 1st order diff
+gold_diff <- diff(gold, 1)
+tsdisplay(gold_diff,
+  points = F,
+  main = "Lag-1 Differenced Gold",
+  xlab = "Date",
+  ylab = "Differencing of Gold",
+  col = "black"
+)
+
+monthplot(gold_diff,
+  main = "Monthly plot of Lag-1 Differenced Gold"
+)
+```
+
+```{r}
+gold_model <- auto.arima(gold)
+print(gold_model)
+```
+
+```{r}
+fitted1 <- gold - gold_model$resid
+range_df <- data.frame(Date = df_filtered$date, Gold = gold, Fitted = fitted1)
+print(range_df)
+plot(range_df$Date, range_df$Gold,
+  type = "l", col = "black",
+  main = "Plot of Fitted vs. Actual",
+  xlab = "Date", ylab = "Gold Price"
+)
+lines(range_df$Date, range_df$Fitted, col = "red")
+tsdisplay(gold_model$resid,
+  points = F,
+  main = "Residuals of ARIMA Model (4,1,4)"
+)
+qqnorm(gold_model$resid)
+qqline(gold_model$resid, col = "red")
+```
+
+
+```{r}
+cor_value <- round(cor(gold, fitted1, use = "complete.obs"), 3)
+plot(gold, fitted1,
+  xlab = "Acutal",
+  ylab = "Predicted", col = "black", pch = 20,
+  main = "Plot of Predicted vs. Actual"
+)
+abline(0, 1, col = "red")
+text_x <- min(gold) + 0.1 * (max(gold) - min(gold))
+text_y <- min(fitted1) + 0.9 * (max(fitted1) - min(fitted1))
+text(
+  x = text_x, y = text_y,
+  labels = paste("Correlation:", cor_value),
+  col = "blue"
+)
+```
+
+
+```{r}
+library(forecast)
+forecast_values <- forecast(gold_model, h = 251 + 250 + 249 + 249 + 250 + 250)
+forecast_dates <- seq(from = max(df_filtered$date) + 1, by = "day", 
+                      length.out = 251 + 250 + 249 + 249 + 250 + 250)
+actual_data <- df[df$date >= as.Date("2014-01-01") & df$date <= as.Date("2023-12-31"), ]
+combined_x_range <- range(actual_data$date, forecast_dates, na.rm = TRUE)
+combined_y_range <- range(actual_data$gold, forecast_values$mean, 
+                          forecast_values$lower,
+                          forecast_values$upper, na.rm = TRUE)
+plot(actual_data$date, actual_data$gold,
+  type = "l", lwd = 1, col = "black",
+  xlab = "Date", ylab = "Gold Price", main = "Forecast vs. Actual Gold Prices",
+  xlim = combined_x_range, ylim = combined_y_range
+)
+lines(forecast_dates, forecast_values$mean, col = "red", lwd = 1)
+lines(forecast_dates, forecast_values$lower[, 2], col = "blue", lty = 2) # 95% lower CI
+lines(forecast_dates, forecast_values$upper[, 2], col = "blue", lty = 2) # 95% upper CI
+legend("topleft",
+  legend = c("Actual", "Forecast", "95% Confidence Interval"),
+  col = c("black", "red", "blue"),
+  lty = c(1, 1, 2), lwd = c(2, 2, 1)
+)
+```
+
+
+
+```{r}
+forecast_values <- forecast(gold_model, h = 251 + 250 + 249 + 249 + 250 + 250)
+forecast_dates <- seq(from = max(df_filtered$date) + 1, by = "day", 
+                      length.out = 251 + 250 + 249 + 249 + 250 + 250)
+actual_data <- df[df$date >= as.Date("2020-01-01") & df$date <= as.Date("2023-12-31"), ]
+combined_x_range <- range(actual_data$date, forecast_dates, na.rm = TRUE)
+combined_y_range <- range(actual_data$gold, forecast_values$mean, 
+                          forecast_values$lower, forecast_values$upper, na.rm = TRUE)
+plot(actual_data$date, actual_data$gold,
+  type = "l", lwd = 1, col = "black",
+  xlab = "Date", ylab = "Gold Price", main = "Forecast vs. Actual Gold Prices",
+  xlim = combined_x_range, ylim = combined_y_range
+)
+lines(forecast_dates, forecast_values$mean, col = "red", lwd = 1)
+lines(forecast_dates, forecast_values$lower[, 2], col = "blue", lty = 2) # 95% lower CI
+lines(forecast_dates, forecast_values$upper[, 2], col = "blue", lty = 2) # 95% upper CI
+legend("bottomright",
+  legend = c("Actual", "Forecast", "95% Confidence Interval"),
+  col = c("black", "red", "blue"),
+  lty = c(1, 1, 2), lwd = c(2, 2, 1)
+)
+```
+
+```{r}
+gold_sarima <- auto.arima(gold_ts, seasonal = TRUE, D=1, seasonal.test="ocsb")
+summary(gold_sarima)
+```
+
+```{r}
+# SARIMA underperformed
+fitted2 <- gold_ts - gold_sarima$resid
+range_df <- data.frame(Date = df_filtered$date, Gold = gold, Fitted = fitted1)
+print(range_df)
+plot(range_df$Date, range_df$Gold,
+  type = "l", col = "black",
+  main = "Plot of Fitted vs. Actual",
+  xlab = "Date", ylab = "Gold Price"
+)
+lines(range_df$Date, range_df$Fitted, col = "red")
+tsdisplay(gold_sarima$resid,
+  points = F,
+  main = "Residuals of SARIMA Model(0,1,0)(0,1,0)"
+)$
+qqnorm(gold_sarima$resid)
+qqline(gold_sarima$resid, col = "red")
+```
+
+
+

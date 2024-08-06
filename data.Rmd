@@ -1,0 +1,143 @@
+---
+title: "data preprocessing"
+author: "Suyeon Song"
+date: "2024-04-12"
+output: html_document
+---
+
+# SP500
+
+```{r}
+library(quantmod)
+getSymbols("SPY", src = "yahoo", 
+           from = "2014-01-01", 
+           to = "2023-12-31")
+sp500 <- na.omit(Cl(SPY))
+colnames(sp500) <- "close"
+print(head(sp500))
+print(tail(sp500))
+print(nrow(sp500))
+sp500_df <- data.frame(date = index(sp500), 
+                       close = as.numeric(sp500$close))
+sp500_df$date <- as.Date(sp500_df$date, format = "%m/%d/%Y")
+sp500_df <- sp500_df[order(sp500_df$date), ]
+head(sp500_df)
+tail(sp500_df)
+str(sp500_df)
+```
+
+# Gold 
+
+```{r}
+library(quantmod)
+getSymbols("GC=F", src = "yahoo", 
+           from = "2014-01-01", to = "2023-12-31")
+gold <- na.omit(Cl(`GC=F`))
+colnames(gold) <- "close"
+print(head(gold))
+print(tail(gold))
+print(nrow(gold))
+gold_df <- data.frame(date = index(gold), 
+                       close = as.numeric(gold$close))
+gold_df$date <- as.Date(gold_df$date, format = "%m/%d/%Y")
+gold_df <- gold_df[order(gold_df$date), ]
+head(gold_df)
+tail(gold_df)
+str(gold_df)
+```
+
+# T-bill
+
+```{r}
+# 10 years of t-bill data loading
+tb_2014 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2014.csv")
+tb_2015 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2015.csv")
+tb_2016 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2016.csv")
+tb_2017 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2017.csv")
+tb_2018 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2018.csv")
+tb_2019 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2019.csv")
+tb_2020 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2020.csv")
+tb_2021 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2021.csv")
+tb_2022 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2022.csv")
+tb_2023 <- read.csv("/Users/suyeonsong/TimeSeries-Project/t-bill/2023.csv")
+```
+
+```{r}
+# extract a column of "X13.WEEKS.COUPON.EQUIVALENT"
+cp_2014 <- (tb_2014[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2015 <- (tb_2015[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2016 <- (tb_2016[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2017 <- (tb_2017[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2018 <- (tb_2018[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2019 <- (tb_2019[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2020 <- (tb_2020[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2021 <- (tb_2021[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2022 <- (tb_2022[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+cp_2023 <- (tb_2023[, c("Date", "X13.WEEKS.COUPON.EQUIVALENT")])
+```
+
+
+```{r}
+# set the date type in ascending order
+cp_2014 <- cp_2014[order(cp_2014$Date), ]
+cp_2015 <- cp_2015[order(cp_2015$Date), ]
+cp_2016 <- cp_2016[order(cp_2016$Date), ]
+cp_2017 <- cp_2017[order(cp_2017$Date), ]
+cp_2018 <- cp_2018[order(cp_2018$Date), ]
+cp_2019 <- cp_2019[order(cp_2019$Date), ]
+cp_2020 <- cp_2020[order(cp_2020$Date), ]
+cp_2021 <- cp_2021[order(cp_2021$Date), ]
+cp_2022 <- cp_2022[order(cp_2022$Date), ]
+cp_2023 <- cp_2023[order(cp_2023$Date), ]
+```
+
+```{r}
+# list them all
+cp_list <- list(
+  cp_2014 = cp_2014, cp_2015 = cp_2015, cp_2016 = cp_2016,
+  cp_2017 = cp_2017, cp_2018 = cp_2018, cp_2019 = cp_2019,
+  cp_2020 = cp_2020, cp_2021 = cp_2021, cp_2022 = cp_2022,
+  cp_2023 = cp_2023
+)
+
+```
+
+```{r}
+df_merge <- lapply(cp_list, function(df) {
+  # sort by date
+  df <- df[order(as.Date(df$Date, format = "%m/%d/%Y")), ]
+  # rename columns
+  colnames(df) <- c("date", "coupon")
+  # convert date type
+  df$date <- as.Date(df$date, format = "%m/%d/%Y")
+  return(df)
+})
+
+names(df_merge) <- names(cp_list)
+combined_df <- bind_rows(df_merge)
+head(combined_df)
+tail(combined_df)
+nrow(combined_df)
+str(combined_df)
+```
+```{r}
+tmp <- inner_join(sp500_df, gold_df, by = "date")
+df <- inner_join(tmp, combined_df, by = "date")
+print(nrow(df))
+colnames(df) <- c("date", "gold", "sp500", "coupon")
+str(df)
+```
+
+```{r}
+library(dplyr)
+df <- df %>% 
+  mutate(year = format(date, "%Y"))
+yearly_counts <- df %>% 
+  group_by(year) %>% 
+  summarise(n = n())
+print(yearly_counts)
+```
+
+
+
+

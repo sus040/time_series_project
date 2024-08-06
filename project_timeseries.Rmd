@@ -1,0 +1,33 @@
+---
+title: "Time Series"
+author: "Suyeon Song"
+date: "2024-03-25"
+output: html_document
+---
+
+# Pull up data for gold price from yahoo finance
+```{r}
+library(quantmod)
+getSymbols("GC=F",src = "yahoo", 
+           from = "2014-01-01", 
+           to = "2023-12-31")
+
+gold <- na.omit(Cl(`GC=F`))
+colnames(gold) <- "close"
+head(gold)
+```
+
+# SP500
+```{r}
+getSymbols("SPY",src = "yahoo", 
+           from = "2014-01-01", 
+           to = "2023-12-31")
+sp500 <- na.omit(Cl(`SPY`))
+colnames(sp500) <- "close"
+head(sp500)
+tail(sp500)
+```
+
+# T-bill
+
+

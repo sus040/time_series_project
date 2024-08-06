@@ -1,0 +1,47 @@
+---
+title: "SP500 EDA"
+author: "Xiaowen Wu"
+date: "2024-04-08"
+output: html_document
+---
+
+## SP500
+```{r}
+library(quantmod)
+getSymbols("SPY",src = "yahoo", from = "2014-01-01", to = "2023-12-31")
+sp500 <- na.omit(Cl(`SPY`))
+colnames(sp500) <- "close"
+head(sp500)
+tail(sp500)
+```
+
+```{r}
+plot(sp500, main = "SP500 Close Price", xlab = "Date", ylab = "Close Price")
+```
+
+```{r}
+acf(sp500)
+pacf(sp500)
+```
+```{r}
+library(tseries)
+adf.test(sp500, alternative = "stationary")
+```
+
+```{r}
+sp_diff <- diff(sp500)
+sp_diff <- na.omit(sp_diff)
+adf.test(sp_diff, alternative = "stationary")
+```
+
+```{r}
+plot(sp_diff, main = "Difference: SP500 Close Price", xlab = "Date", ylab = "Close Price")
+```
+
+
+```{r}
+acf(sp_diff)
+pacf(sp_diff)
+```
+
+

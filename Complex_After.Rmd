@@ -1,0 +1,148 @@
+---
+title: "Complex Model After Covid"
+author: "Xiaowen Wu"
+date: "2024-04-15"
+output: html_document
+---
+
+# 1. get the data
+
+
+```{r}
+library(readxl)
+data_origin <- read_xlsx("data.xlsx")
+data_origin <- subset(data_origin, year %in% c(2020, 2021, 2022, 2023))
+data_origin <- data_origin[-c(1000,1001),]
+```
+
+
+# 2. cor
+```{r}
+cor(data_origin$gold, data_origin$sp500)
+cor(data_origin$gold, data_origin$coupon)
+```
+
+# 3. adf test
+```{r}
+library(urca)
+adf_test_sp500 <- ur.df(diff(data_origin$sp500), type="none", lags=0)
+summary(adf_test_sp500)
+
+adf_test_coupon <- ur.df(diff(data_origin$coupon), type="none", lags=0)
+summary(adf_test_coupon)
+
+adf_test_gold <- ur.df(diff(data_origin$gold), type="none", lags=0)
+summary(adf_test_gold)
+```
+
+
+```{r}
+data <- data_origin
+data$gold <- c(NA, NA, diff(data$gold, differences = 2))
+data$sp500 <- c(NA, NA, diff(data$sp500, differences = 2))
+data$coupon <- c(NA, NA, diff(data$coupon, differences=2))
+data <- ts(data[, c("sp500", "gold", "coupon")], frequency = 250, 
+           start = c(2020, 1, 2), end = c(2024, 1, 1))
+data <- na.omit(data)
+```
+
+```{r}
+plot(data[, "gold"], type = "l")
+plot(data[, "sp500"], type = "l")
+plot(data[, "coupon"], type = "l")
+```
+
+# 4. build model for var
+
+```{r}
+library(vars)
+var_order <- VARselect(data, lag.max = 20, type = "both", season = NULL)
+var_order$selection
+```
+
+```{r}
+var_model <- VAR(data, p = 9, type = "both")
+summary(var_model)
+```
+
+# 5. diagnostic plots
+```{r}
+residuals <- residuals(var_model)
+plot(var_model$varresult$gold)
+```
+
+
+```{r}
+par(mfrow=c(2,1))
+acf(residuals)
+pacf(residuals)
+```
+
+```{r}
+fitted_1 <- data[,2] - residuals[,2]
+plot(data[,2])
+lines(fitted_1, col = "red", )
+```
+
+
+```{r}
+Box.test(residuals[,1], lag = 10, type = "Ljung-Box")
+Box.test(residuals[,2], lag = 10, type = "Ljung-Box")
+Box.test(residuals[,3], lag = 10, type = "Ljung-Box")
+```
+
+# 6. predict
+```{r, fig.width=10, fig.height=12}
+library(forecast)
+forecast_results <- forecast(var_model, h = 100)
+plot(forecast_results)
+```
+
+# undifference the forecast values for the gold price
+```{r}
+data_origin <- ts(data_origin[, c("sp500", "gold", "coupon")], frequency = 250, 
+           start = c(2020, 1, 2), end = c(2024, 1, 1))
+data_origin <- data_origin[1:999,]
+last_value <- tail(data_origin[, "gold"], 1)
+undiff_forecast <- rep(last_value, length(forecast_results$forecast[[2]]$mean))
+undiff_forecast <- undiff_forecast + cumsum(forecast_results$forecast[[2]]$mean)
+undiff_forecast[2] <- last_value + forecast_results$forecast[[2]]$mean[2]
+undiff_forecast
+```
+
+# make a plot for undifference forcast values
+
+```{r}
+plot(undiff_forecast, type = "l")
+```
+
+# arima with external regressors(sp500 and coupon)
+```{r}
+future_regressor <- data_origin[,c("sp500", "coupon")]
+gold_ts <- data_origin[, "gold", drop = FALSE]
+```
+
+```{r}
+fit <- auto.arima(gold_ts, xreg = future_regressor)
+summary(fit)
+```
+
+```{r}
+plot(fit$residuals)
+hist(fit$residuals, breaks = "Scott", main = "Residuals Histogram", xlab = "Residuals")
+shapiro.test(fit$residuals) # This test is for normality
+Box.test(fit$residuals, lag = log(length(fit$residuals)))
+acf(fit$residuals)
+```
+
+```{r}
+future_gold <- forecast(fit, xreg = future_regressor)
+plot(future_gold)
+```
+
+
+
+
+
+
+

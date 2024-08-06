@@ -1,0 +1,85 @@
+---
+title: "Modeling"
+author: "Sophia Gan"
+date: "2024-04-08"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(quantmod)
+library(ggplot2)
+library(dplyr)
+library(forecast)
+library(tidyverse)
+```
+
+## all the data
+```{r}
+tbills <- read.csv("tbills.csv")
+gold <- read.csv("gold.csv")
+sp500 <- read.csv("sp500.csv")
+```
+
+## filling in the missing data for gold and sp500 and exporting them into csv
+```{r}
+# library(xts)
+# 
+# gold_df <- data.frame(date=index(gold), coredata(gold))
+# filled_gold <- gold_df %>%
+#   complete(date = seq.Date(min(date), max(date), by="day")) %>%
+#   fill(close)
+# write.csv(filled_gold, "gold.csv", row.names=FALSE)
+# 
+# sp500_df <- data.frame(date=index(sp500), coredata(sp500))
+# filled_sp500 <- sp500_df %>%
+#   complete(date = seq.Date(min(date), max(date), by="day")) %>%
+#   fill(close)
+# write.csv(filled_sp500, "sp500.csv", row.names=FALSE)
+```
+
+
+## filled empty date with close price of previous date
+## haven't figured a way to fill the gold and sp500
+```{r}
+# tbills$date <- as.Date(tbills$date, format="%Y-%m-%d")
+# tbills <- tbills %>% arrange(date)
+# 
+# filled_tbills <- tbills %>%
+#   complete(date = seq.Date(min(date), max(date), by="day")) %>%
+#   fill(coupon)
+# write.csv(filled_tbills, "tbills.csv", row.names=FALSE)
+```
+
+```{r}
+tbills_ts <- ts(tbills$coupon, 
+                start=c(year(min(tbills$date)), month(min(tbills$date)), 
+                        day(min(tbills$date))), frequency = 365)
+gold_ts <- ts(gold$close, 
+                start=c(year(min(gold$date)), month(min(gold$date)), 
+                        day(min(gold$date))), frequency = 365)
+sp500_ts <- ts(sp500$close, 
+                start=c(year(min(sp500$date)), month(min(sp500$date)), 
+                        day(min(sp500$date))), frequency = 365)
+
+
+model_tb <- auto.arima(tbills_ts)
+model_gold <- auto.arima(gold_ts)
+model_sp500 <- auto.arima(sp500_ts)
+summary(model_tb)
+summary(model_gold)
+summary(model_sp500)
+```
+
+```{r}
+forecast_tb <- forecast(model_tb, h=600)
+plot(forecast_tb)
+forecast_gold <- forecast(model_gold, h=600)
+plot(forecast_gold)
+forecast_sp500 <- forecast(model_sp500, h=600)
+plot(forecast_sp500)
+```
+

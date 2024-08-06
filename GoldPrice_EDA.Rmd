@@ -1,0 +1,60 @@
+---
+title: "Gold Price EDA"
+author: "Shiyu Wu"
+date: "2024-04-08"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load the necessary library
+library(quantmod)
+
+# Fetching gold price data from Yahoo Finance for the past decade
+getSymbols("GC=F", src = "yahoo", 
+           from = "2014-01-01", 
+           to = "2023-12-31")
+
+# Preprocessing the data
+# Removing NA values and focusing on the closing price
+gold <- na.omit(Cl(`GC=F`))
+colnames(gold) <- "close"
+
+
+# Plot the closing price over time
+plot(gold, main = "Gold Closing Prices Over Time", xlab = "Date", ylab = "Closing Price (USD)")
+
+# Summary statistics of the closing prices
+summary(gold)
+
+# Checking for stationarity with Augmented Dickey-Fuller Test
+library(tseries)
+adf.test(gold$close, alternative = "stationary")
+
+# Decomposing the time series to observe trends, seasonal patterns, and residuals
+library(forecast)
+gold_ts <- ts(gold$close, frequency = 252)
+
+# Autocorrelation to check for patterns at different lags
+acf(gold$close, main = "Autocorrelation of Gold Closing Prices")
+
+# Partial autocorrelation to identify the extent of the relationship between the series and its lags
+pacf(gold$close, main = "Partial Autocorrelation of Gold Closing Prices")
+
+
+gold_diff <- diff(gold$close, differences = 1)
+
+plot(gold_diff, main = "First Difference of Gold Closing Prices", ylab = "Differences", xlab = "Time")
+
+gold_diff <- na.omit(gold_diff)
+acf(gold_diff, main = "ACF of First Differenced Series")
+pacf(gold_diff, main = "PACF of First Differenced Series")
+
+adf.test(gold_diff, alternative = "stationary")
+```
+
+
+The original time series is not stationary, but if we do differencing, it will become stationary. We can prove it by hypothesis testing.

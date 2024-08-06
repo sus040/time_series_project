@@ -1,0 +1,268 @@
+---
+title: "Complex Model After Covid for Gold"
+author: "Xiaowen Wu"
+date: "2024-04-18"
+output: html_document
+---
+
+```{r}
+library(tseries)
+library(forecast)
+library(ggplot2)
+library(dplyr)
+library(lubridate)
+library(vars)
+library(urca)
+library(rugarch)
+library(readr)
+library(readxl)
+```
+
+# 1. get the data
+
+```{r}
+data_origin <- read_xlsx("data.xlsx")
+data_origin <- subset(data_origin, year %in% c(2020, 2021, 2022, 2023))
+data_origin$date <- as.Date(data_origin$date)
+```
+
+```{r}
+gold <- data_origin[, c(1,3)]
+```
+
+# 2. difference
+
+```{r}
+data <- ts(data_origin[, c("sp500", "gold", "coupon")], frequency = 250, start = c(2020, 1, 2))
+
+data_diff <- diff(data, differences = 2)
+acf(data_diff)
+pacf(data_diff)
+```
+
+```{r}
+plot(data_diff[, "gold"], type = "l")
+plot(data_diff[, "sp500"], type = "l")
+plot(data_diff[, "coupon"], type = "l")
+```
+
+# 3. build model for var
+
+```{r}
+library(vars)
+var_lag <- VARselect(data_diff, lag.max = 20, type = "both", season = NULL)
+var_lag$selection
+```
+
+```{r}
+var_model <- VAR(data_diff, p = 9, type = "both")
+summary(var_model)
+```
+
+# 4. diagnostic plots
+```{r}
+residuals <- residuals(var_model)
+qqnorm(residuals[,2])
+qqline(residuals[,2], col = "red")
+
+plot(residuals[,2], type = "l", ylab = "Residuals", xlab = " ", 
+     main = "Residuals of Gold")
+abline(h = 0, col = "red", lwd = 2)
+```
+
+```{r, fig.width= 10, fig.height= 10}
+acf(residuals)
+pacf(residuals)
+```
+
+# 5. predict
+```{r, fig.width=10, fig.height=8}
+library(forecast)
+forecast_length <- 70
+forecast_results <- forecast(var_model, h = 70)
+plot(forecast_results)
+```
+
+## undifference the forecast values for the gold price
+```{r}
+last_value <- tail(data[, "gold"],1)
+last_date <- max(data_origin$date)
+forecast_date <- seq.Date(from = last_date + 1, by = "day", length.out = forecast_length)
+
+undiff_forecast <- rep(last_value, length(forecast_results$forecast[[2]]$mean))
+undiff_forecast <- undiff_forecast + cumsum(forecast_results$forecast[[2]]$mean)
+undiff_forecast[1] <- last_value + forecast_results$forecast[[2]]$mean[2]
+undiff_forecast
+
+undiff_lower_ci <- rep(last_value, length(forecast_results$forecast[[2]]$lower))
+undiff_lower_ci <- undiff_lower_ci + cumsum(forecast_results$forecast[[2]]$lower)
+undiff_lower_ci[1] <- last_value + forecast_results$forecast[[2]]$lower[[2]]
+
+undiff_upper_ci <- rep(last_value, length(forecast_results$forecast[[2]]$upper))
+undiff_upper_ci <- undiff_upper_ci + cumsum(forecast_results$forecast[[2]]$upper)
+undiff_upper_ci[1] <- last_value + forecast_results$forecast[[2]]$upper[[2]]
+
+sliced_lower_ci <- undiff_lower_ci[1:forecast_length]
+sliced_upper_ci <- undiff_upper_ci[1:forecast_length]
+```
+
+## make a plot for undifference forcast values
+
+```{r}
+plot(undiff_forecast, type = "l")
+```
+
+```{r}
+library(dplyr)
+forecast_data_var <- data.frame(
+  date = forecast_date,
+  gold = undiff_forecast,
+  lower_ci = sliced_lower_ci,
+  upper_ci = sliced_upper_ci,
+  Type = "Forecast"
+)
+```
+
+```{r}
+gold_2024 <- read.csv("2024gold.csv")
+gold_2024 <- gold_2024[, 2:3]
+colnames(gold_2024)[2] <- "gold"
+gold_2024$date <- as.Date(gold_2024$date)
+```
+
+```{r}
+gold_before <- data_origin[, c(1,3)]
+gold_all <- bind_rows(gold_before, gold_2024)
+gold_all <- gold_all %>%
+  mutate(
+    lower_ci = as.numeric(NA),
+    upper_ci = as.numeric(NA),
+    Type = "Actual"
+  )
+```
+
+```{r}
+gold_total_var <- rbind(gold_all, forecast_data_var)
+```
+
+```{r}
+library(ggplot2)
+ggplot(gold_total_var, aes(x = date, y = gold)) +
+  geom_line(aes(color = Type), linewidth = 0.5) +
+  geom_ribbon(data = filter(gold_total_var, Type == "Forecast"),
+              aes(ymin = lower_ci, ymax = upper_ci), fill = "red", alpha = 0.2) +
+  scale_color_manual(values = c("Actual" = "blue", "Forecast" = "red")) +
+  labs(title = "Gold Prices: Actual vs Forecast",
+       x = "Date",
+       y = "Gold Price",
+       color = "Type") +
+  theme_minimal()
+```
+
+```{r}
+gold_2024_real <- gold_2024 %>%
+  mutate(
+    lower_ci = as.numeric(NA),
+    upper_ci = as.numeric(NA),
+    Type = "Actual"
+  )
+gold_2024_real <- gold_2024_real[1:70,]
+gold_pred <- rbind(forecast_data_var, gold_2024_real)
+```
+
+```{r}
+ggplot(gold_pred, aes(x = date, y = gold)) +
+  geom_line(aes(color = Type), linewidth = 0.5) +
+  geom_ribbon(data = filter(gold_pred, Type == "Forecast"),
+              aes(ymin = lower_ci, ymax = upper_ci), fill = "red", alpha = 0.2) +
+  scale_color_manual(values = c("Actual" = "blue", "Forecast" = "red")) +
+  labs(title = "Gold Prices: Actual vs Forecast",
+       x = "Date",
+       y = "Gold Price",
+       color = "Type") +
+  theme_minimal()
+```
+
+
+# 6. arima with external regressors(sp500 and coupon)
+```{r}
+data_diff1 <- diff(data, differences = 1)
+gold_2024 <- read.csv("2024gold.csv")
+gold_2024 <- gold_2024[, -1]
+gold_2024$date <- as.Date(gold_2024$date)
+```
+
+```{r}
+library(quantmod)
+getSymbols("SPY",src = "yahoo", from = "2024-01-02", to = "2024-04-15")
+sp500_2024 <- na.omit(Cl(`SPY`))
+colnames(sp500_2024) <- "sp500"
+sp500_2024 <- fortify.zoo(sp500_2024)
+colnames(sp500_2024)[1] <- "date"
+```
+
+```{r}
+coupon_2024 <- read_xlsx("coupon_2024.xlsx")
+
+future_regressor <- inner_join(sp500_2024, coupon_2024, by = "date")
+future_regressor <- ts(future_regressor)
+future_regressor <- future_regressor[,2:3]
+gold_ts <- data[, "gold", drop = FALSE]
+
+regressor <- data[,c(1,3)]
+colnames(future_regressor)[1] <- "gold" 
+```
+
+
+```{r}
+fit <- auto.arima(gold_ts, xreg = regressor, max.p = 5, max.q = 5, max.order = 10, stationary = F, seasonal = F, trace = T, stepwise = F, approximation = F)
+summary(fit)
+```
+
+```{r}
+plot(fit$residuals)
+abline(h = 0, col = "red")
+acf(fit$residuals)
+pacf(fit$residuals)
+qqnorm(fit$residuals)
+qqline(fit$residuals)
+```
+
+```{r}
+future_gold <- forecast(fit, xreg = future_regressor)
+plot(future_gold)
+```
+
+
+```{r}
+forcast_length <- length(future_gold$mean)
+forecast_dates <- seq(from = as.Date("2024-01-01"), length.out = forecast_length, by = "day")
+```
+
+```{r}
+forecast_df <- data.frame(
+  date = forecast_dates,
+  gold = future_gold$mean[1:70],
+  lower_ci = future_gold$lower[1:70],
+  upper_ci = future_gold$upper[1:70],
+  Type = "Forecast"
+)
+
+combined_data <- bind_rows(forecast_df, gold_all)
+```
+
+
+```{r}
+ggplot(combined_data, aes(x = date, y = gold, group = Type, color = Type)) +
+  geom_line(aes(color = Type), linewidth = 0.5) +
+  geom_ribbon(data = filter(combined_data, Type == "Forecast"),
+              aes(ymin = lower_ci, ymax = upper_ci), fill = "red", alpha = 0.2) +
+  scale_color_manual(values = c("Actual" = "black", 
+                                "Forecast" = "red")) +
+  labs(title = "Gold Price: Actual and Forecast",
+       x = "Date",
+       y = "Price",
+       color = "Data Type") +
+  theme_minimal()
+
+```
